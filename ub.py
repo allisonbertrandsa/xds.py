@@ -15,11 +15,11 @@ __author__ = "Stelios Sfakianakis <ssfak@ics.forth.gr>"
 from gevent import monkey; monkey.patch_all()
 from gevent import pywsgi
 from gevent import Greenlet
-from pymongo import json_util
+from bson import json_util
 from gevent.event import Event
 import gevent
 import pymongo
-from pymongo import objectid
+from bson import objectid
 import bson
 import os
 import datetime
@@ -60,7 +60,7 @@ PCODES_TEMPLATE_IDS = { 'COBSCAT': '1.3.6.1.4.1.19376.1.5.3.1.4.13.2'
 MYIP = socket.gethostbyname_ex(socket.gethostname())[2][0]
 
 # Keep a single instance? It has a thread pool..
-MONCON = pymongo.Connection(MONGO_HOST)
+MONCON = pymongo.MongoClient(MONGO_HOST)
 
 def parsePid(patientId):
     delim = '^^^&' # see http://is.gd/fNUSv (search for sourcePatientInfo)
@@ -207,8 +207,8 @@ class SubscriptionLet(Greenlet):
                     MONCON.xds.pcc.update({'_id':objectid.ObjectId(sid)},
                                           {"$set": {"lastChecked_": tm}})
             print "[%s] Total Entries Found: %d" % (sid, len(entries))
-        finally:
-            MONCON.end_request()
+        except:
+            print "Exception in check_subscription" 
         return entries
     
     def __str__(self):
@@ -316,7 +316,6 @@ def schedule_all(timeout, notify_port, modulo=0, m=1):
     except Exception, e:
         print 'Exception....' + str(e)
     finally:
-        MONCON.end_request()
         print 'Registering %d workers ended' % (len(workers),)
         # gevent.joinall(workers)
     if notify_port > 0:
@@ -403,7 +402,7 @@ def subscription_resource(subId, env, start_response):
             start_response('200 OK', [('Content-Type', 'text/plain;charset=utf-8')])
             return [json.dumps(s, default=json_util.default, sort_keys=True, indent=4)]
         elif method == 'DELETE':
-            status = pcc.remove(oid, safe=True)
+            status = pcc.remove(oid)
             # print status
             if status['err'] is not None:
                 start_response('500 Internal server error', [('Content-Type', 'text/html')])
@@ -423,9 +422,7 @@ def subscription_resource(subId, env, start_response):
         print 'Exception....' + str(e)
         start_response('500 Internal server error', [('Content-Type', 'text/html')])
         return ['<h1>Internal server Error</h1> <pre>%s</pre>' % str(e)]
-    finally:
-        MONCON.end_request()
-        
+
         
 
 REST_RE = re.compile('\A/subscription/(\w+)\Z')

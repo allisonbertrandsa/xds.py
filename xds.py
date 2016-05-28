@@ -442,10 +442,10 @@ def handle_mtom_oper(moncon, msg):
                                 print "wrote ", fn
                                 doc['size'] = doc_data['size']
                                 doc["hash"] = doc_data['hash']
-                                moncon.xds.docs.insert(doc, safe=True)
+                                moncon.xds.docs.insert(doc)
                                 sset['docs'].append(doc['entryUUID'])
                                 print 'Document',doc['entryUUID'], 'inserted'
-                        mongoId = moncon.xds.ssets.insert(sset, safe=True)
+                        mongoId = moncon.xds.ssets.insert(sset)
                         print 'submission',sset['entryUUID'], 'inserted'
                 except Exception, ex:
                         print "ERROR: %s" % ex
@@ -459,8 +459,6 @@ def handle_mtom_oper(moncon, msg):
                         del sset['_id']
                         send_submission_notification(sset) #send_notification('submission', sset)
                         print "NEW SUBMISSION PUSHED TO UB"
-                finally:
-                        moncon.end_request()
                 RS = NS['rs']
                 res = etree.Element("{%s}RegistryResponse" % RS)
                 res.attrib['status'] = resultStatus
@@ -504,8 +502,6 @@ def handle_mtom_oper(moncon, msg):
                 except Exception, ex:
                         print "ERROR: %s" % ex
                         resultStatus = FAILURE_RESULT_STATUS
-                finally:
-                        moncon.end_request()
                 rr = etree.Element("{%s}RegistryResponse" % RS)
                 rr.attrib['status'] = resultStatus
                 res.insert(0, rr)
@@ -648,7 +644,6 @@ def handle_simple_soap_oper(moncon, inp):
                                         xml_submission(rob, doc)
                                 else:
                                         xml_document(rob, doc)
-                moncon.end_request()
                 soap = build_soap_msg(resAct, wmesgid, xml)
                 response = etree.tostring(soap, pretty_print=False, 
                                           encoding='UTF-8',
@@ -661,7 +656,7 @@ def handle_simple_soap_oper(moncon, inp):
 class XDS_Handler:
         exposed = True
         def __init__(self, mongoHost):
-                self.con = pymongo.Connection(host=mongoHost)
+                self.con = pymongo.MongoClient(host=mongoHost)
         def GET(self):
                 cherrypy.response.headers['Content-type'] = 'text/html'
                 tmpl  = jinja2_env.get_template('xds_index.html')
@@ -721,7 +716,7 @@ jinja2_env = jinja2.Environment(loader=jinja2.FileSystemLoader('templates'))
 class PCC9_Handler:
         exposed = True
         def __init__(self, mongoHost):
-                self.con = pymongo.Connection(host=mongoHost)
+                self.con = pymongo.MongoClient(host=mongoHost)
         def GET(self):
                 cherrypy.response.headers['Content-Type'] = 'text/html'
                 tmpl  = jinja2_env.get_template('pcc_index.html')
@@ -860,7 +855,7 @@ class PCC9_Handler:
                                         subscription['clinicalStatementTimePeriod'] = {'low':low, 'high':high}
                                 subscription['storedAt_'] = time.time()
                                 coll = self.con.xds.pcc
-                                mongoId = coll.insert( subscription, safe=True )
+                                mongoId = coll.insert( subscription)
                                 print "New subscription %s stored in DB" % mongoId
                                 # 
                                 # Send notification to the UpdateBroker through Redis
@@ -868,14 +863,12 @@ class PCC9_Handler:
                                 del subscription['_id']
                                 worker_port = send_subscription_notification(subscription)
                                 print "New subscription %s pushed to UB at %s" % (mongoId, worker_port)
-                        except pymongo.errors.ConnectionFailure, ex:
+                        except pymongo.errors, ex:
                                 print "MONGO DB connection failure!!"
                         except Exception, ex:
                                 print "Unexpected error:", str(ex)
                                 errors.append({'code':'ISSUE',
                                                'text': "Unexpected error:%s" % (ex,)})
-                        finally:
-                                self.con.end_request()
                         break
                 cherrypy.response.headers['Content-Type'] = 'application/soap+xml'
                 typecode = 'AR' if len(errors) > 0 else 'AA'
@@ -892,7 +885,7 @@ class PCC9_Handler:
 class DocsHandler:
         exposed = True
         def __init__(self, mongoHost):
-                self.con = pymongo.Connection(host=mongoHost)
+                self.con = pymongo.MongoClient(host=mongoHost)
         def GET(self, docid=None, cnt = None):
                 max = int(cnt) if cnt else 50
                 try:
@@ -913,9 +906,7 @@ class DocsHandler:
                 except Exception, ex:
                         print "ERROR: %s" % (ex)
                         raise cherrypy.HTTPError()
-                finally:
-                        self.con.end_request()
-                                
+
 def send_notification(port, type, sub):
     from socket import socket, AF_INET,SOCK_STREAM
     msg = {'type':type, 'payload': sub}

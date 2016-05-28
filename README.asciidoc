@@ -24,3 +24,8 @@ Please check the link:INSTALL.html[INSTALL] file for information on
 installing and running these components. More information about the
 testing of the XDS server can be found in the
 link:TESTING_XDS.html[TESTING_XDS] file.
+
+Allison Bertrand <allisonbertrandsa@gmail.com>
+v1.0.1, May 2016
+- Work-in-progress: started update for pymongo 3.2.2
+ - Sends PCC-9 message, added patient to database, but has error with PCC-10 message response from ub.py
